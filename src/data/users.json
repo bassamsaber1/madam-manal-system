@@ -1,0 +1,23 @@
+[
+    {
+        "username": "admin",
+        "hash": "f02ee8e0f061c7d4b6e58cbc69429c14f00d2c83f5feade1b60ea17376f3d8e74ed3722d8d26b0f8f5fc0559331215fbce4708e1d8548da90294a2bc6cc96e8b",
+        "salt": "b397322d8da26aa3beedf66f7c6fdad4",
+        "fullname": "بسام المشرف",
+        "role": "admin"
+    },
+    {
+        "username": "manal",
+        "hash": "8996ea19d2c469349b54dc626d77a09474f4823fdf8212b83c3de68bfba3a513470af1bca87d630b75f7c330daf4368b5c159bae8208f2d8e46da741a4cbdc04",
+        "salt": "e6746ada69c9b1d366ebbcd976b6af32",
+        "fullname": "مدام منال",
+        "role": "staff"
+    },
+    {
+        "username": "boza",
+        "hash": "129d40a09b4fd3771ff672484831ae7b3af96465e90a7976416c5a3198e201fe3d7f00eb5391a0f9e879bb4d1422c1d9c5d9446cceaa5a01bf847ec3311597ce",
+        "salt": "0126580a8111c044e3dc8a68bc2920fc",
+        "fullname": "Mohamed Saber",
+        "role": "staff"
+    }
+]
