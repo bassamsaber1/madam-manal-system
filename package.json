@@ -8,7 +8,8 @@
     "start": "node scripts/start.js",
     "start:next": "next start",
     "lint": "next lint",
-    "build-index": "node scripts/build-index.js"
+    "build-index": "node scripts/build-index.js",
+    "ensure-index": "node scripts/ensure-index.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

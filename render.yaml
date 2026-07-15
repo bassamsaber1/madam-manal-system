@@ -2,20 +2,14 @@ services:
   - type: web
     name: data-egypt
     runtime: node
-    plan: starter
-    buildCommand: git lfs pull && npm install && npm run build
+    plan: free
+    buildCommand: git lfs pull && npm install && node scripts/ensure-index.js && npm run build
     startCommand: npm start
     healthCheckPath: /
-    disk:
-      name: data-egypt-disk
-      mountPath: /var/data
-      sizeGB: 10
     envVars:
       - key: NODE_VERSION
         value: "20.18.0"
       - key: NODE_ENV
         value: production
-      - key: PERSISTENT_DATA_DIR
-        value: /var/data
-      - key: SEARCH_DB_PATH
-        value: /var/data/search.db
+      - key: SEARCH_DB_URL
+        sync: false
