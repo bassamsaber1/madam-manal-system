@@ -152,22 +152,35 @@ export default function Home() {
     setSearchResult(null);
     setLoading(true);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
     try {
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchQuery }),
+        signal: controller.signal,
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
         setSearchResult(data.data);
+      } else if (data.indexBuilding) {
+        setIndexBuilding(true);
+        if (data.indexedCount) setIndexedCount(data.indexedCount);
+        setSystemError(data.message || 'الفهرس لسه بيتبنى — انتظر شوية');
       } else {
         setSystemError(data.message || 'لا توجد بيانات مطابقة');
       }
-    } catch {
-      setSystemError('خطأ أثناء البحث');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setSystemError('البحث أخذ وقت طويل — الفهرس لسه بيتبنى، جرب بعد دقائق');
+      } else {
+        setSystemError('خطأ أثناء البحث — تأكد أن السيرفر شغال');
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };

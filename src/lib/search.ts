@@ -41,6 +41,18 @@ export function normalizePhone(value: string): string {
   return digits;
 }
 
+const LARGE_FILE_BYTES = 50 * 1024 * 1024;
+
+export function isLargeDataFile(): boolean {
+  const filePath = getDataFilePath();
+  if (!fs.existsSync(filePath)) return false;
+  try {
+    return fs.statSync(filePath).size > LARGE_FILE_BYTES;
+  } catch {
+    return false;
+  }
+}
+
 function parseLine(line: string): SearchRecord | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
@@ -69,6 +81,8 @@ function recordMatches(record: SearchRecord, cleanQuery: string, phoneQuery: str
 export async function searchInDataFile(query: string): Promise<SearchRecord | null> {
   const filePath = getDataFilePath();
   if (!fs.existsSync(filePath)) return null;
+
+  if (isLargeDataFile()) return null;
 
   const cleanQuery = normalizeQuery(query);
   const phoneQuery = normalizePhone(query);
