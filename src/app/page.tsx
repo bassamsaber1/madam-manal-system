@@ -57,6 +57,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [indexBuilding, setIndexBuilding] = useState(false);
   const [indexedCount, setIndexedCount] = useState(0);
+  const [indexPercent, setIndexPercent] = useState(0);
+  const [searchReady, setSearchReady] = useState(false);
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogout = useCallback((message?: string) => {
@@ -109,13 +111,15 @@ export default function Home() {
         const data = await res.json();
         setIndexBuilding(data.building);
         setIndexedCount(data.indexedCount || 0);
+        setIndexPercent(data.percent || 0);
+        setSearchReady(data.searchReady);
       } catch {
         /* ignore */
       }
     };
 
     checkIndex();
-    const timer = setInterval(checkIndex, 15000);
+    const timer = setInterval(checkIndex, 5000);
     return () => clearInterval(timer);
   }, [isLoggedIn]);
 
@@ -148,6 +152,10 @@ export default function Home() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!searchReady) {
+      setSystemError('الفهرس لسه بيتبنى — انتظر لحد ما يوصل 100%');
+      return;
+    }
     setSystemError('');
     setSearchResult(null);
     setLoading(true);
@@ -261,7 +269,28 @@ export default function Home() {
             </form>
           ) : (
             <div className="space-y-5 sm:space-y-6">
-              {indexBuilding && (
+              {!searchReady && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
+                  <p className="text-sm font-black text-amber-900 text-center">
+                    ⏳ الفهرس بيتبنى — انتظر {indexPercent > 0 ? `${indexPercent}%` : 'شوية'}
+                  </p>
+                  <div className="w-full h-3 bg-amber-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-500 rounded-full"
+                      style={{ width: `${Math.max(indexPercent, 2)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-amber-800 text-center font-semibold">
+                    {indexedCount > 0
+                      ? `${indexedCount.toLocaleString('ar-EG')} / 45 مليون سجل`
+                      : 'أول تشغيل على السيرفر — يحتاج 30-45 دقيقة'}
+                  </p>
+                  <p className="text-xs text-amber-700 text-center">
+                    لما يوصل 100% البحث هيفتح تلقائياً — متحاولش تبحث دلوقتي
+                  </p>
+                </div>
+              )}
+              {indexBuilding && searchReady && (
                 <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800 font-semibold text-center">
                   ⏳ الفهرس بيتبنى ({indexedCount.toLocaleString('ar-EG')} / 45 مليون) — البحث شغال
                 </div>
@@ -291,7 +320,8 @@ export default function Home() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="ID أو رقم الموبايل..."
-                    className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-center text-slate-800 text-base"
+                    disabled={!searchReady || loading}
+                    className="w-full px-4 py-3.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-center text-slate-800 text-base disabled:bg-slate-100 disabled:text-slate-400"
                     inputMode="search"
                     autoComplete="off"
                     required
@@ -300,10 +330,14 @@ export default function Home() {
                 </div>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-base"
+                  disabled={loading || !searchReady}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-base"
                 >
-                  {loading ? 'جاري البحث...' : '🔍 بحث واستخراج البيانات'}
+                  {!searchReady
+                    ? `⏳ الفهرس بيتبنى ${indexPercent > 0 ? `(${indexPercent}%)` : ''}`
+                    : loading
+                      ? 'جاري البحث...'
+                      : '🔍 بحث واستخراج البيانات'}
                 </button>
               </form>
 

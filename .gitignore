@@ -2,5 +2,13 @@ node_modules
 .env
 dist
 build
-ALL.txt
+.next
 madam-manal-system-dist.zip
+ALL.txt
+all.txt
+data/search.db
+data/search.db-shm
+data/search.db-wal
+data/index.complete
+data/index.progress
+*.log

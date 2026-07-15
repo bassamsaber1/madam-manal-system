@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = process.env.SEARCH_DB_PATH || path.join(DB_DIR, 'search.db');
-const BATCH_SIZE = 50000;
+const BATCH_SIZE = 20000;
 
 function getDataFilePath() {
   if (process.env.DATA_FILE_PATH && fs.existsSync(process.env.DATA_FILE_PATH)) {

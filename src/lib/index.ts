@@ -22,16 +22,19 @@ export function isIndexComplete(): boolean {
   return fs.existsSync(COMPLETE_FLAG);
 }
 
+export function isSearchReady(): boolean {
+  return isIndexComplete() && indexExists();
+}
+
 function getDb(): Database.Database | null {
+  if (!isSearchReady()) return null;
   if (db) return db;
 
   const dbPath = getIndexPath();
-  if (!fs.existsSync(dbPath)) return null;
-
   db = new Database(dbPath, { readonly: true, fileMustExist: true });
   db.pragma('query_only = ON');
-  db.pragma('busy_timeout = 5000');
-  db.pragma('cache_size = -128000');
+  db.pragma('busy_timeout = 3000');
+  db.pragma('cache_size = -64000');
   db.pragma('temp_store = MEMORY');
   return db;
 }
@@ -44,9 +47,12 @@ export function searchInIndex(query: string): SearchRecord | null {
   const phoneQuery = normalizePhone(query);
   if (!cleanQuery) return null;
 
-  const row = database
-    .prepare('SELECT id, phone FROM records WHERE id = ? OR phone_norm = ? LIMIT 1')
-    .get(cleanQuery, phoneQuery) as SearchRecord | undefined;
-
-  return row ?? null;
+  try {
+    const row = database
+      .prepare('SELECT id, phone FROM records WHERE id = ? OR phone_norm = ? LIMIT 1')
+      .get(cleanQuery, phoneQuery) as SearchRecord | undefined;
+    return row ?? null;
+  } catch {
+    return null;
+  }
 }
