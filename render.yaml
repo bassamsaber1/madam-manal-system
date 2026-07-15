@@ -6,8 +6,16 @@ services:
     buildCommand: git lfs pull && npm install && npm run build
     startCommand: npm start
     healthCheckPath: /
+    disk:
+      name: data-egypt-disk
+      mountPath: /var/data
+      sizeGB: 10
     envVars:
       - key: NODE_VERSION
         value: "20.18.0"
       - key: NODE_ENV
         value: production
+      - key: PERSISTENT_DATA_DIR
+        value: /var/data
+      - key: SEARCH_DB_PATH
+        value: /var/data/search.db

@@ -1,17 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import { getCompleteFlagPath, getDbPath } from './paths';
 import { normalizePhone, normalizeQuery, type SearchRecord } from './search';
-
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'search.db');
-const COMPLETE_FLAG = path.join(DB_DIR, 'index.complete');
 
 let db: Database.Database | null = null;
 
 export function getIndexPath(): string {
-  if (process.env.SEARCH_DB_PATH) return process.env.SEARCH_DB_PATH;
-  return DB_PATH;
+  return getDbPath();
 }
 
 export function indexExists(): boolean {
@@ -19,7 +15,7 @@ export function indexExists(): boolean {
 }
 
 export function isIndexComplete(): boolean {
-  return fs.existsSync(COMPLETE_FLAG);
+  return fs.existsSync(getCompleteFlagPath());
 }
 
 export function isSearchReady(): boolean {
@@ -30,8 +26,7 @@ function getDb(): Database.Database | null {
   if (!isSearchReady()) return null;
   if (db) return db;
 
-  const dbPath = getIndexPath();
-  db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  db = new Database(getIndexPath(), { readonly: true, fileMustExist: true });
   db.pragma('query_only = ON');
   db.pragma('busy_timeout = 3000');
   db.pragma('cache_size = -64000');

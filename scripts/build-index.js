@@ -2,28 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const Database = require('better-sqlite3');
+const { getDataDir, getDbPath, getCompleteFlag, getProgressPath, getDataFilePath } = require('./data-paths');
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = process.env.SEARCH_DB_PATH || path.join(DB_DIR, 'search.db');
 const BATCH_SIZE = 20000;
-
-function getDataFilePath() {
-  if (process.env.DATA_FILE_PATH && fs.existsSync(process.env.DATA_FILE_PATH)) {
-    return process.env.DATA_FILE_PATH;
-  }
-
-  const candidates = [
-    path.join(process.cwd(), 'ALL.txt'),
-    path.join(process.cwd(), 'all.txt'),
-    path.join(process.cwd(), 'src', 'data', 'all.txt'),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  return candidates[0];
-}
 
 function normalizePhone(value) {
   let digits = value.replace(/[^\d]/g, '');
@@ -48,15 +29,19 @@ async function buildSearchIndex() {
     throw new Error(`ملف البيانات غير موجود: ${filePath}`);
   }
 
+  const dataDir = getDataDir();
+  const dbPath = getDbPath();
+  const completeFlag = getCompleteFlag();
+  const progressPath = getProgressPath();
+
   console.log(`📂 قراءة من: ${filePath}`);
-  fs.mkdirSync(DB_DIR, { recursive: true });
+  console.log(`💾 الفهرس على: ${dbPath}`);
 
-  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
-  if (fs.existsSync(path.join(DB_DIR, 'index.complete'))) {
-    fs.unlinkSync(path.join(DB_DIR, 'index.complete'));
-  }
+  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+  if (fs.existsSync(completeFlag)) fs.unlinkSync(completeFlag);
+  if (fs.existsSync(progressPath)) fs.unlinkSync(progressPath);
 
-  const db = new Database(DB_PATH);
+  const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
 
@@ -99,7 +84,7 @@ async function buildSearchIndex() {
       if (total % 500000 === 0) {
         const mins = ((Date.now() - started) / 60000).toFixed(1);
         console.log(`⏳ ${total.toLocaleString()} سجل (${mins} دقيقة)`);
-        fs.writeFileSync(path.join(DB_DIR, 'index.progress'), String(total), 'utf-8');
+        fs.writeFileSync(progressPath, String(total), 'utf-8');
       }
     }
   }
@@ -113,14 +98,11 @@ async function buildSearchIndex() {
   stream.destroy();
   db.close();
 
-  fs.writeFileSync(path.join(DB_DIR, 'index.complete'), String(total), 'utf-8');
-  if (fs.existsSync(path.join(DB_DIR, 'index.progress'))) {
-    fs.unlinkSync(path.join(DB_DIR, 'index.progress'));
-  }
+  fs.writeFileSync(completeFlag, String(total), 'utf-8');
+  if (fs.existsSync(progressPath)) fs.unlinkSync(progressPath);
 
   const mins = ((Date.now() - started) / 60000).toFixed(1);
   console.log(`✅ تم: ${total.toLocaleString()} سجل في ${mins} دقيقة`);
-  console.log(`💾 الفهرس: ${DB_PATH}`);
 
   return total;
 }

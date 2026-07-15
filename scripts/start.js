@@ -1,25 +1,27 @@
 const { spawn } = require('child_process');
 const fs = require('fs');
-const path = require('path');
+const { getDbPath, getCompleteFlag, getDataFilePath } = require('./data-paths');
 
-const completeFlag = path.join(process.cwd(), 'data', 'index.complete');
-const dbPath = path.join(process.cwd(), 'data', 'search.db');
-const allTxt = path.join(process.cwd(), 'ALL.txt');
+const dbPath = getDbPath();
+const completeFlag = getCompleteFlag();
 
 function startIndexBuildInBackground() {
   if (fs.existsSync(completeFlag)) return;
 
-  const hasSource = fs.existsSync(allTxt) || fs.existsSync(path.join(process.cwd(), 'src', 'data', 'all.txt'));
-  if (!hasSource) {
+  const dataFile = getDataFilePath();
+  if (!fs.existsSync(dataFile)) {
     console.warn('⚠️ ملف ALL.txt غير موجود — البحث لن يعمل');
     return;
   }
 
   console.log('⏳ بدء بناء الفهرس في الخلفية...');
+  console.log(`📁 مسار التخزين الدائم: ${process.env.PERSISTENT_DATA_DIR || './data'}`);
+
   const child = spawn(process.execPath, ['scripts/build-index.js'], {
     detached: true,
-    stdio: 'ignore',
+    stdio: 'inherit',
     cwd: process.cwd(),
+    env: process.env,
   });
   child.unref();
 }
@@ -38,7 +40,7 @@ function startNextServer() {
 if (!fs.existsSync(dbPath) || !fs.existsSync(completeFlag)) {
   startIndexBuildInBackground();
 } else {
-  console.log('✅ الفهرس جاهز — بحث سريع');
+  console.log('✅ الفهرس جاهز على القرص الدائم — بحث سريع');
 }
 
 startNextServer();

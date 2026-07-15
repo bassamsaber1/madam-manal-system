@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
+import { getCompleteFlagPath, getProgressPath } from '@/lib/paths';
 import { getDataFilePath, isSearchReady, searchRecords } from '@/lib/lookup';
 
 function getIndexedCount(): number {
-  const dataDir = path.join(process.cwd(), 'data');
-  const completePath = path.join(dataDir, 'index.complete');
-  const progressPath = path.join(dataDir, 'index.progress');
-  if (fs.existsSync(completePath)) {
-    return Number(fs.readFileSync(completePath, 'utf-8')) || 0;
+  if (fs.existsSync(getCompleteFlagPath())) {
+    return Number(fs.readFileSync(getCompleteFlagPath(), 'utf-8')) || 0;
   }
-  if (fs.existsSync(progressPath)) {
-    return Number(fs.readFileSync(progressPath, 'utf-8')) || 0;
+  if (fs.existsSync(getProgressPath())) {
+    return Number(fs.readFileSync(getProgressPath(), 'utf-8')) || 0;
   }
   return 0;
 }
-
 export async function POST(request: Request) {
   try {
     const { searchQuery } = await request.json();
