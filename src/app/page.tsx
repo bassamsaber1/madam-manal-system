@@ -1,12 +1,50 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 type SearchRecord = {
   id: string;
   phone: string;
 };
+
+const SESSION_KEY = 'data_egypt_session';
+const SESSION_MS = 20 * 60 * 1000;
+
+type StoredSession = {
+  username: string;
+  role: string;
+  expiresAt: number;
+};
+
+function saveSession(username: string, role: string) {
+  const session: StoredSession = {
+    username,
+    role,
+    expiresAt: Date.now() + SESSION_MS,
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function readSession(): StoredSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as StoredSession;
+    if (Date.now() >= session.expiresAt) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -19,6 +57,48 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [indexBuilding, setIndexBuilding] = useState(false);
   const [indexedCount, setIndexedCount] = useState(0);
+  const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLogout = useCallback((message?: string) => {
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    clearSession();
+    setIsLoggedIn(false);
+    setUserRole('');
+    setSearchResult(null);
+    setSearchQuery('');
+    setUsername('');
+    setPassword('');
+    setSystemError(message || '');
+  }, []);
+
+  useEffect(() => {
+    const session = readSession();
+    if (session) {
+      setIsLoggedIn(true);
+      setUserRole(session.role);
+      setUsername(session.username);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const session = readSession();
+    if (!session) {
+      handleLogout('انتهت الجلسة — سجّل الدخول مرة أخرى');
+      return;
+    }
+
+    const remaining = session.expiresAt - Date.now();
+    logoutTimerRef.current = setTimeout(
+      () => handleLogout('انتهت الجلسة بعد 20 دقيقة — سجّل الدخول مرة أخرى'),
+      remaining
+    );
+
+    return () => {
+      if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    };
+  }, [isLoggedIn, handleLogout]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -53,6 +133,7 @@ export default function Home() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        saveSession(username, data.role);
         setIsLoggedIn(true);
         setUserRole(data.role);
       } else {
@@ -91,15 +172,7 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserRole('');
-    setSearchResult(null);
-    setSearchQuery('');
-    setUsername('');
-    setPassword('');
-    setSystemError('');
-  };
+  const onManualLogout = () => handleLogout();
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col md:flex-row bg-slate-950 font-sans text-right" dir="rtl">
@@ -183,6 +256,7 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 text-sm text-emerald-800">
                 <span>
                   مرحباً: <strong>{username}</strong>
+                  <span className="block text-[10px] text-emerald-600/80 mt-0.5">الجلسة نشطة لمدة 20 دقيقة</span>
                 </span>
                 {userRole === 'admin' && (
                   <Link
@@ -231,7 +305,7 @@ export default function Home() {
               )}
 
               <button
-                onClick={handleLogout}
+                onClick={onManualLogout}
                 className="w-full py-2.5 text-sm text-slate-400 hover:text-slate-600 transition-colors text-center font-medium"
               >
                 تسجيل الخروج
