@@ -194,6 +194,8 @@ export default function Home() {
                 )}
               </div>
 
+              <SearchGuide />
+
               <form onSubmit={handleSearch} className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">ابحث في 45+ مليون سجل</label>
@@ -242,6 +244,49 @@ export default function Home() {
           Data Egypt © 2026 — جميع الحقوق محفوظة
         </div>
       </div>
+    </div>
+  );
+}
+
+function SearchGuide() {
+  return (
+    <div className="p-4 sm:p-5 bg-blue-50 border border-blue-100 rounded-2xl space-y-3">
+      <h3 className="text-sm font-black text-blue-900">📋 طريقة البحث بالـ ID</h3>
+      <ol className="space-y-2.5 text-xs sm:text-sm text-blue-900/90 leading-relaxed list-none">
+        <li className="flex gap-2">
+          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+          <span>خُذ رابط حساب الفيسبوك (Profile URL)</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+          <span>
+            ضعه في موقع{' '}
+            <a
+              href="https://findidfb.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-blue-700 underline underline-offset-2 hover:text-blue-900"
+              dir="ltr"
+            >
+              findidfb.com
+            </a>{' '}
+            — هيطلع لك الـ ID
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+          <span>انسخ الـ ID وحطه في خانة البحث — سيتم استخراج النتائج فوراً</span>
+        </li>
+      </ol>
+      <a
+        href="https://findidfb.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-full text-center py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-xl transition-colors"
+        dir="ltr"
+      >
+        🔗 findidfb.com — استخراج ID من رابط Facebook
+      </a>
     </div>
   );
 }
