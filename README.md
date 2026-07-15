@@ -1,48 +1,31 @@
 # 🇪🇬 Data Egypt | داتا مصر
 
-## 🆓 Render — الخطة المجانية (Free Plan)
+بحث مباشر من `ALL.txt` — بدون فهرسة.
 
-الخطة المجانية **ما فيهاش Persistent Disk** — الفهرس بيتمسح لو اتبنى وقت التشغيل.
+## 🆓 Render Free Plan
 
-### ✅ الحل: ارفع الفهرس الجاهز وحمّله وقت الـ Build
+### البحث
+- يبحث مباشرة من `ALL.txt` (مرفوع عبر Git LFS)
+- بدون فهرسة — بدون انتظار 45 دقيقة
 
-#### 1. عندك الفهرس محلياً؟
-بعد `npm run build-index` هتلاقي:
-```
-data/search.db   (~3.7 GB)
-```
+### اليوزرات — ما تتمسحش ✅
+اليوزرات بتتحفظ على **GitHub** تلقائياً.
 
-#### 2. ارفعه على Google Drive أو Mega
-- ارفع ملف `search.db`
-- خُذ **رابط تحميل مباشر**
+#### إعداد Render (مرة واحدة):
+1. GitHub → Settings → Developer settings → **Personal access tokens**
+2. اعمل Token جديد → صلاحية **repo**
+3. Render → Environment Variables:
+   ```
+   GITHUB_TOKEN = التوكن
+   GITHUB_REPO = bassamsaber1/madam-manal-system
+   ```
+4. **Redeploy**
 
-**Google Drive:**
-```
-https://drive.google.com/uc?export=download&id=FILE_ID_HERE
-```
-
-#### 3. على Render → Environment Variables
-```
-SEARCH_DB_URL = رابط التحميل المباشر
-```
-
-#### 4. Deploy
-- كل deploy هيحمّل الفهرس تلقائياً
-- **مش هيتمسح** مع restart عادي
-- البحث **فوري** من أول ما الـ deploy يخلص
+لما تضيف يوزر من لوحة الأدمن → يتحفظ على GitHub → **مش بيتمسح** مع restart.
 
 ---
 
-## 💰 لو عندك خطة مدفوعة
-أضف **Persistent Disk** 10GB على `/var/data` +:
-```
-PERSISTENT_DATA_DIR=/var/data
-SEARCH_DB_PATH=/var/data/search.db
-```
-
----
-
-## 🔒 حسابات الدخول
+## 🔒 حسابات الدخول الافتراضية
 | User | Password |
 |------|----------|
 | admin | admin123 |
@@ -51,6 +34,5 @@ SEARCH_DB_PATH=/var/data/search.db
 ## 🛠️ محلياً
 ```bash
 npm install
-npm run build-index   # مرة واحدة (~45 دقيقة)
 npm run dev
 ```
