@@ -4,22 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/ensure-index.js && next build",
-    "build:hostinger": "npm run build",
+    "build": "next build",
     "start": "node scripts/start.js",
-    "start:next": "next start",
-    "lint": "next lint",
-    "build-index": "node scripts/build-index.js",
-    "ensure-index": "node scripts/ensure-index.js"
+    "lint": "next lint"
   },
   "dependencies": {
-    "better-sqlite3": "^12.7.2",
     "next": "14.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

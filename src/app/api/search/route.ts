@@ -1,17 +1,6 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import { getCompleteFlagPath, getDbPath, getProgressPath } from '@/lib/paths';
-import { isSearchReady, searchRecords } from '@/lib/lookup';
-
-function getIndexedCount(): number {
-  if (fs.existsSync(getCompleteFlagPath())) {
-    return Number(fs.readFileSync(getCompleteFlagPath(), 'utf-8')) || 0;
-  }
-  if (fs.existsSync(getProgressPath())) {
-    return Number(fs.readFileSync(getProgressPath(), 'utf-8')) || 0;
-  }
-  return 0;
-}
+import { getDataFilePath, searchRecords } from '@/lib/lookup';
 
 export async function POST(request: Request) {
   try {
@@ -24,22 +13,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isSearchReady()) {
-      const count = getIndexedCount();
-      const dbPath = getDbPath();
-      const hasPartial =
-        fs.existsSync(dbPath) && fs.statSync(dbPath).size < 3 * 1024 * 1024 * 1024;
-
+    const dataFile = getDataFilePath();
+    if (!fs.existsSync(dataFile)) {
       return NextResponse.json(
         {
           success: false,
-          notReady: true,
-          indexedCount: count,
-          message: hasPartial
-            ? 'الفهرس ناقص — جاري إعادة التحميل (~3.7 GB). انتظر 15-20 دقيقة'
-            : count
-              ? `جاري تجهيز البيانات (${count.toLocaleString('ar-EG')} / 45 مليون) — انتظر دقائق`
-              : 'جاري تجهيز البيانات — انتظر 15-20 دقيقة',
+          message: 'ملف ALL.txt غير موجود على السيرفر — تأكد من git lfs pull في Build Command',
         },
         { status: 503 }
       );
@@ -61,3 +40,4 @@ export async function POST(request: Request) {
 }
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;

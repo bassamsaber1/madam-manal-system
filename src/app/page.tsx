@@ -55,9 +55,6 @@ export default function Home() {
   const [searchResult, setSearchResult] = useState<SearchRecord | null>(null);
   const [systemError, setSystemError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchReady, setSearchReady] = useState(true);
-  const [indexPercent, setIndexPercent] = useState(0);
-  const [indexMode, setIndexMode] = useState<'ready' | 'download' | 'build'>('ready');
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogout = useCallback((message?: string) => {
@@ -101,26 +98,6 @@ export default function Home() {
     };
   }, [isLoggedIn, handleLogout]);
 
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const check = async () => {
-      try {
-        const res = await fetch('/api/index-status');
-        const data = await res.json();
-        setSearchReady(data.searchReady);
-        setIndexPercent(data.percent || 0);
-        setIndexMode(data.mode || 'build');
-      } catch {
-        /* ignore */
-      }
-    };
-
-    check();
-    const timer = setInterval(check, 8000);
-    return () => clearInterval(timer);
-  }, [isLoggedIn]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setSystemError('');
@@ -154,25 +131,31 @@ export default function Home() {
     setSearchResult(null);
     setLoading(true);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 300000);
+
     try {
       const res = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchQuery }),
+        signal: controller.signal,
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
         setSearchResult(data.data);
-      } else if (data.notReady) {
-        setSearchReady(false);
-        setSystemError(data.message || 'جاري تجهيز البيانات — انتظر دقائق');
       } else {
         setSystemError(data.message || 'لا توجد بيانات مطابقة');
       }
-    } catch {
-      setSystemError('خطأ أثناء البحث');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setSystemError('البحث أخذ وقت طويل — جرب Facebook ID بدل رقم الموبايل');
+      } else {
+        setSystemError('خطأ أثناء البحث');
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };
@@ -253,13 +236,6 @@ export default function Home() {
             </form>
           ) : (
             <div className="space-y-5 sm:space-y-6">
-              {!searchReady && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold text-center">
-                  {indexMode === 'download'
-                    ? `⬇️ جاري تحميل الفهرس ${indexPercent > 0 ? `(${indexPercent}%)` : ''} — ~10-15 دقيقة`
-                    : `⏳ جاري تجهيز البيانات ${indexPercent > 0 ? `(${indexPercent}%)` : ''} — ~45 دقيقة`}
-                </div>
-              )}
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 text-sm text-emerald-800">
                 <span>
                   مرحباً: <strong>{username}</strong>
@@ -292,15 +268,15 @@ export default function Home() {
                     required
                   />
                   <p className="mt-2 text-xs text-slate-400 text-center">
-                    {searchReady ? 'بحث فوري ⚡' : 'انتظر تجهيز البيانات...'}
+                    بحث مباشر من ALL.txt — قد يأخذ دقائق
                   </p>
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || !searchReady}
+                  disabled={loading}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg text-base"
                 >
-                  {loading ? 'جاري البحث...' : searchReady ? '🔍 بحث واستخراج البيانات' : '⏳ جاري التجهيز...'}
+                  {loading ? 'جاري البحث...' : '🔍 بحث واستخراج البيانات'}
                 </button>
               </form>
 

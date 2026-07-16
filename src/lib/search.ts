@@ -54,15 +54,24 @@ function parseLine(line: string): SearchRecord | null {
   };
 }
 
+function phoneVariants(query: string): string[] {
+  const digits = query.replace(/[^\d]/g, '');
+  const normalized = normalizePhone(query);
+  const variants = new Set([normalized, digits]);
+  if (digits.startsWith('20') && digits.length >= 12) variants.add(digits.slice(2));
+  if (digits.startsWith('0')) variants.add(digits.slice(1));
+  if (digits.length === 10 && !digits.startsWith('0')) variants.add(`0${digits}`);
+  return Array.from(variants).filter(Boolean);
+}
+
 function recordMatches(record: SearchRecord, cleanQuery: string, phoneQuery: string): boolean {
   const id = normalizeQuery(record.id);
-  const phone = normalizePhone(record.phone);
+  if (id === cleanQuery) return true;
 
-  return (
-    id === cleanQuery ||
-    phone === phoneQuery ||
-    phone.endsWith(phoneQuery) ||
-    phoneQuery.endsWith(phone)
+  const phone = normalizePhone(record.phone);
+  const variants = phoneVariants(phoneQuery);
+  return variants.some(
+    (variant) => phone === variant || phone.endsWith(variant) || variant.endsWith(phone)
   );
 }
 
