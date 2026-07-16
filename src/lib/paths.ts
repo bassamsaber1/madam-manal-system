@@ -1,8 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 
+function resolveDataDir() {
+  if (process.env.PERSISTENT_DATA_DIR) return process.env.PERSISTENT_DATA_DIR;
+
+  const legacyData = path.join(process.cwd(), 'data');
+  if (fs.existsSync(path.join(legacyData, 'index.complete'))) return legacyData;
+
+  return path.join(process.cwd(), 'render-db');
+}
+
 export function getDataDir(): string {
-  const dir = process.env.PERSISTENT_DATA_DIR || path.join(process.cwd(), 'data');
+  const dir = resolveDataDir();
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
