@@ -41,6 +41,14 @@ function readBody(response, maxBytes = 2 * 1024 * 1024) {
   });
 }
 
+function extractGoogleDriveFileId(url) {
+  const byQuery = url.match(/[?&]id=([^&]+)/);
+  if (byQuery) return byQuery[1];
+  const byPath = url.match(/\/file\/d\/([^/]+)/);
+  if (byPath) return byPath[1];
+  return null;
+}
+
 function extractGoogleDriveConfirm(html, fileId) {
   const tokenMatch =
     html.match(/confirm=([0-9A-Za-z_]+)/) ||
@@ -52,8 +60,10 @@ function extractGoogleDriveConfirm(html, fileId) {
 }
 
 async function resolveDownloadUrl(url) {
-  const fileIdMatch = url.match(/[?&]id=([^&]+)/);
-  const fileId = fileIdMatch ? fileIdMatch[1] : null;
+  const fileId = extractGoogleDriveFileId(url);
+  if (fileId) {
+    url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  }
 
   const response = await fetchResponse(url);
   const type = String(response.headers['content-type'] || '');
@@ -91,6 +101,13 @@ function downloadFile(url, dest) {
           file.close();
           if (fs.existsSync(dest)) fs.unlinkSync(dest);
           return reject(new Error(`فشل التحميل: HTTP ${response.statusCode}`));
+        }
+
+        const contentType = String(response.headers['content-type'] || '');
+        if (contentType.includes('text/html')) {
+          file.close();
+          if (fs.existsSync(dest)) fs.unlinkSync(dest);
+          return reject(new Error('Google Drive رجّع صفحة HTML — تأكد من SEARCH_DB_URL'));
         }
 
         const total = Number(response.headers['content-length'] || 0);
@@ -143,6 +160,7 @@ async function ensureIndex() {
   }
 
   console.log('⬇️ تحميل الفهرس الجاهز من SEARCH_DB_URL...');
+  console.log(`🔗 ${url.slice(0, 80)}...`);
   fs.mkdirSync(dataDir, { recursive: true });
 
   const tempPath = `${dbPath}.download`;
