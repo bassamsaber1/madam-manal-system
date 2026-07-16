@@ -57,6 +57,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [searchReady, setSearchReady] = useState(true);
   const [indexPercent, setIndexPercent] = useState(0);
+  const [indexMode, setIndexMode] = useState<'ready' | 'download' | 'build'>('ready');
   const logoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleLogout = useCallback((message?: string) => {
@@ -109,6 +110,7 @@ export default function Home() {
         const data = await res.json();
         setSearchReady(data.searchReady);
         setIndexPercent(data.percent || 0);
+        setIndexMode(data.mode || 'build');
       } catch {
         /* ignore */
       }
@@ -253,7 +255,9 @@ export default function Home() {
             <div className="space-y-5 sm:space-y-6">
               {!searchReady && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold text-center">
-                  ⏳ جاري تجهيز البيانات {indexPercent > 0 ? `(${indexPercent}%)` : ''} — البحث هيفتح تلقائياً
+                  {indexMode === 'download'
+                    ? `⬇️ جاري تحميل الفهرس ${indexPercent > 0 ? `(${indexPercent}%)` : ''} — ~10-15 دقيقة`
+                    : `⏳ جاري تجهيز البيانات ${indexPercent > 0 ? `(${indexPercent}%)` : ''} — ~45 دقيقة`}
                 </div>
               )}
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 sm:p-4 text-sm text-emerald-800">

@@ -17,10 +17,17 @@ export async function GET() {
     ? Math.min(100, Math.round((indexedCount / totalEstimate) * 100))
     : 0;
 
+  const mode = isSearchReady()
+    ? 'ready'
+    : process.env.SEARCH_DB_URL
+      ? 'download'
+      : 'build';
+
   return NextResponse.json({
     searchReady: isSearchReady(),
     indexedCount,
     percent,
+    mode,
   });
 }
 

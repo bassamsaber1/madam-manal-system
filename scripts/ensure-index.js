@@ -1,45 +1,12 @@
 const fs = require('fs');
-const path = require('path');
 const https = require('https');
 const http = require('http');
-const { getDataDir, getDbPath, getCompleteFlag } = require('./data-paths');
+const { getDataDir, getDbPath, getCompleteFlag, getProgressPath } = require('./data-paths');
 
 const TOTAL_RECORDS = '45183047';
 const MIN_DB_BYTES = 500 * 1024 * 1024;
-
-function fetchResponse(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    const request = client.get(url, options, (response) => {
-      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        response.resume();
-        return fetchResponse(response.headers.location, options).then(resolve).catch(reject);
-      }
-      resolve(response);
-    });
-    request.on('error', reject);
-  });
-}
-
-function readBody(response, maxBytes = 2 * 1024 * 1024) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-
-    response.on('data', (chunk) => {
-      size += chunk.length;
-      if (size > maxBytes) {
-        response.destroy();
-        reject(new Error('استجابة غير متوقعة من رابط التحميل'));
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    response.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-    response.on('error', reject);
-  });
-}
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 function extractGoogleDriveFileId(url) {
   const byQuery = url.match(/[?&]id=([^&]+)/);
@@ -49,92 +16,160 @@ function extractGoogleDriveFileId(url) {
   return null;
 }
 
-function extractGoogleDriveConfirm(html, fileId) {
-  const tokenMatch =
-    html.match(/confirm=([0-9A-Za-z_]+)/) ||
-    html.match(/name="confirm"\s+value="([0-9A-Za-z_]+)"/);
-
-  if (tokenMatch) return tokenMatch[1];
-  if (fileId) return 't';
-  return null;
+function parseCookies(setCookieHeaders = []) {
+  const cookies = {};
+  for (const header of setCookieHeaders) {
+    const part = String(header).split(';')[0];
+    const eq = part.indexOf('=');
+    if (eq > 0) cookies[part.slice(0, eq)] = part.slice(eq + 1);
+  }
+  return cookies;
 }
 
-async function resolveDownloadUrl(url) {
-  const fileId = extractGoogleDriveFileId(url);
-  if (fileId) {
-    url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+function cookieHeader(cookies) {
+  return Object.entries(cookies)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ');
+}
+
+function fetchOnce(url, cookies = {}) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    const headers = { 'User-Agent': USER_AGENT };
+    if (Object.keys(cookies).length) headers.Cookie = cookieHeader(cookies);
+
+    const request = client.get(url, { headers }, (response) => resolve({ response, cookies }));
+    request.on('error', reject);
+  });
+}
+
+async function fetchWithRedirects(url, cookies = {}, maxRedirects = 10) {
+  let currentUrl = url;
+  let jar = { ...cookies };
+
+  for (let i = 0; i < maxRedirects; i += 1) {
+    const { response } = await fetchOnce(currentUrl, jar);
+    const setCookie = response.headers['set-cookie'] || [];
+    jar = { ...jar, ...parseCookies(setCookie) };
+
+    if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+      currentUrl = response.headers.location.startsWith('http')
+        ? response.headers.location
+        : new URL(response.headers.location, currentUrl).href;
+      response.resume();
+      continue;
+    }
+
+    return { response, cookies: jar, url: currentUrl };
   }
 
-  const response = await fetchResponse(url);
+  throw new Error('تعذر متابعة تحميل Google Drive');
+}
+
+function readHtml(response) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    response.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > 3 * 1024 * 1024) {
+        response.destroy();
+        reject(new Error('استجابة HTML غير متوقعة'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    response.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    response.on('error', reject);
+  });
+}
+
+function extractConfirmToken(html) {
+  const patterns = [
+    /confirm=([0-9A-Za-z_]+)/,
+    /name="confirm"\s+value="([0-9A-Za-z_]+)"/,
+    /id="download-form"[\s\S]*?action="([^"]+)"/,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return match[1];
+  }
+  return 't';
+}
+
+async function resolveGoogleDriveUrl(url) {
+  const fileId = extractGoogleDriveFileId(url);
+  const baseUrl = fileId
+    ? `https://drive.google.com/uc?export=download&id=${fileId}`
+    : url;
+
+  let { response, cookies, url: currentUrl } = await fetchWithRedirects(baseUrl);
   const type = String(response.headers['content-type'] || '');
 
   if (response.statusCode === 200 && type.includes('text/html')) {
-    const html = await readBody(response);
-    const confirm = extractGoogleDriveConfirm(html, fileId);
-    if (!confirm) throw new Error('تعذر تأكيد تحميل Google Drive');
-
+    const html = await readHtml(response);
     response.destroy?.();
-    const base = fileId
-      ? `https://drive.google.com/uc?export=download&id=${fileId}`
-      : url.split('&confirm=')[0];
-    return `${base}${base.includes('?') ? '&' : '?'}confirm=${confirm}`;
+
+    const confirm = extractConfirmToken(html);
+    const confirmUrl = fileId
+      ? `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirm}`
+      : `${currentUrl}${currentUrl.includes('?') ? '&' : '?'}confirm=${confirm}`;
+
+    ({ response, cookies, url: currentUrl } = await fetchWithRedirects(confirmUrl, cookies));
   }
 
-  response.destroy?.();
-  return url;
+  if (response.statusCode !== 200) {
+    response.destroy?.();
+    throw new Error(`فشل التحميل: HTTP ${response.statusCode}`);
+  }
+
+  const finalType = String(response.headers['content-type'] || '');
+  if (finalType.includes('text/html')) {
+    response.destroy?.();
+    throw new Error('Google Drive رجّع HTML — افتح الملف Share للجميع');
+  }
+
+  return { response, url: currentUrl };
 }
 
-function downloadFile(url, dest) {
+function writeProgress(bytes, total) {
+  const progressPath = getProgressPath();
+  const count = total ? Math.round((bytes / total) * TOTAL_RECORDS) : 0;
+  fs.writeFileSync(progressPath, String(count), 'utf-8');
+}
+
+function downloadResponse(response, dest) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
+    const total = Number(response.headers['content-length'] || 0);
+    let downloaded = 0;
 
-    const run = (currentUrl) => {
-      const client = currentUrl.startsWith('https') ? https : http;
+    response.on('data', (chunk) => {
+      downloaded += chunk.length;
+      if (total && downloaded % (50 * 1024 * 1024) < chunk.length) {
+        const pct = Math.round((downloaded / total) * 100);
+        console.log(`⬇️ ${pct}% (${(downloaded / 1024 / 1024 / 1024).toFixed(2)} GB)`);
+        writeProgress(downloaded, total);
+      }
+    });
 
-      client.get(currentUrl, (response) => {
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          response.resume();
-          return run(response.headers.location);
-        }
-
-        if (response.statusCode !== 200) {
-          file.close();
-          if (fs.existsSync(dest)) fs.unlinkSync(dest);
-          return reject(new Error(`فشل التحميل: HTTP ${response.statusCode}`));
-        }
-
-        const contentType = String(response.headers['content-type'] || '');
-        if (contentType.includes('text/html')) {
-          file.close();
-          if (fs.existsSync(dest)) fs.unlinkSync(dest);
-          return reject(new Error('Google Drive رجّع صفحة HTML — تأكد من SEARCH_DB_URL'));
-        }
-
-        const total = Number(response.headers['content-length'] || 0);
-        let downloaded = 0;
-
-        response.on('data', (chunk) => {
-          downloaded += chunk.length;
-          if (total && downloaded % (100 * 1024 * 1024) < chunk.length) {
-            const pct = Math.round((downloaded / total) * 100);
-            console.log(`⬇️ ${pct}% (${(downloaded / 1024 / 1024 / 1024).toFixed(2)} GB)`);
-          }
-        });
-
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close();
-          resolve();
-        });
-      }).on('error', (err) => {
-        file.close();
-        if (fs.existsSync(dest)) fs.unlinkSync(dest);
-        reject(err);
-      });
-    };
-
-    run(url);
+    response.pipe(file);
+    file.on('finish', () => {
+      file.close();
+      resolve(downloaded);
+    });
+    file.on('error', reject);
+    response.on('error', reject);
   });
+}
+
+function clearPartialIndex() {
+  const dbPath = getDbPath();
+  const completeFlag = getCompleteFlag();
+  const progressPath = getProgressPath();
+  for (const file of [dbPath, completeFlag, progressPath, `${dbPath}.download`]) {
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
 }
 
 async function ensureIndex() {
@@ -146,43 +181,55 @@ async function ensureIndex() {
     const size = fs.statSync(dbPath).size;
     if (size >= MIN_DB_BYTES) {
       console.log('✅ الفهرس موجود مسبقاً');
-      return;
+      return true;
     }
     console.log('⚠️ ملف الفهرس تالف — إعادة التحميل');
-    fs.unlinkSync(dbPath);
-    fs.unlinkSync(completeFlag);
+    clearPartialIndex();
+  } else if (fs.existsSync(getProgressPath()) || fs.existsSync(dbPath)) {
+    console.log('🧹 مسح فهرس جزئي — بدء التحميل من SEARCH_DB_URL');
+    clearPartialIndex();
   }
 
   const url = process.env.SEARCH_DB_URL;
   if (!url) {
-    console.log('ℹ️ SEARCH_DB_URL غير موجود — سيتم بناء الفهرس عند التشغيل');
-    return;
+    console.log('ℹ️ SEARCH_DB_URL غير موجود — سيتم بناء الفهرس من ALL.txt');
+    return false;
   }
 
   console.log('⬇️ تحميل الفهرس الجاهز من SEARCH_DB_URL...');
-  console.log(`🔗 ${url.slice(0, 80)}...`);
   fs.mkdirSync(dataDir, { recursive: true });
 
   const tempPath = `${dbPath}.download`;
   if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
 
-  const downloadUrl = await resolveDownloadUrl(url);
-  await downloadFile(downloadUrl, tempPath);
+  const { response } = await resolveGoogleDriveUrl(url);
+  const downloaded = await downloadResponse(response, tempPath);
 
   const size = fs.statSync(tempPath).size;
   if (size < MIN_DB_BYTES) {
     fs.unlinkSync(tempPath);
-    throw new Error('الملف المحمّل صغير جداً — تحقق من SEARCH_DB_URL');
+    throw new Error(`الملف المحمّل صغير (${(size / 1024 / 1024).toFixed(1)} MB) — تحقق من SEARCH_DB_URL`);
   }
 
   if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
   fs.renameSync(tempPath, dbPath);
   fs.writeFileSync(completeFlag, TOTAL_RECORDS, 'utf-8');
 
+  const progressPath = getProgressPath();
+  if (fs.existsSync(progressPath)) fs.unlinkSync(progressPath);
+
   const sizeGb = (size / 1024 / 1024 / 1024).toFixed(2);
-  console.log(`✅ تم تحميل الفهرس (${sizeGb} GB) — البحث جاهز فوراً`);
+  console.log(`✅ تم تحميل الفهرس (${sizeGb} GB, ${downloaded} bytes) — البحث جاهز فوراً`);
+  return true;
 }
 
-ensureIndex().catch((err) => {
-  console.error('⚠️ لم يتم تحميل الفهرس:', err.message);
-});
+module.exports = { ensureIndex };
+
+if (require.main === module) {
+  ensureIndex()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('⚠️ لم يتم تحميل الفهرس:', err.message);
+      process.exit(0);
+    });
+}
