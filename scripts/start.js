@@ -2,21 +2,16 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const { getDbPath, getCompleteFlag, getDataFilePath } = require('./data-paths');
 
-const dbPath = getDbPath();
-const completeFlag = getCompleteFlag();
-
 function startIndexBuildInBackground() {
-  if (fs.existsSync(completeFlag)) return;
+  if (fs.existsSync(getCompleteFlag())) return;
 
   const dataFile = getDataFilePath();
   if (!fs.existsSync(dataFile)) {
-    console.warn('⚠️ ملف ALL.txt غير موجود — البحث لن يعمل');
+    console.warn('⚠️ ALL.txt غير موجود');
     return;
   }
 
-  console.log('⏳ بدء بناء الفهرس في الخلفية...');
-  console.log(`📁 مسار التخزين الدائم: ${process.env.PERSISTENT_DATA_DIR || './data'}`);
-
+  console.log('⏳ بناء الفهرس في الخلفية...');
   const child = spawn(process.execPath, ['scripts/build-index.js'], {
     detached: true,
     stdio: 'inherit',
@@ -27,20 +22,20 @@ function startIndexBuildInBackground() {
 }
 
 function startNextServer() {
-  const next = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'start:next'], {
+  const port = process.env.PORT || '3000';
+  const nextBin = require.resolve('next/dist/bin/next');
+
+  spawn(process.execPath, [nextBin, 'start', '-p', port], {
     stdio: 'inherit',
-    shell: true,
     cwd: process.cwd(),
     env: process.env,
   });
-
-  next.on('exit', (code) => process.exit(code ?? 0));
 }
 
-if (!fs.existsSync(dbPath) || !fs.existsSync(completeFlag)) {
-  startIndexBuildInBackground();
+if (fs.existsSync(getDbPath()) && fs.existsSync(getCompleteFlag())) {
+  console.log('✅ الفهرس جاهز — بحث فوري');
 } else {
-  console.log('✅ الفهرس جاهز على القرص الدائم — بحث سريع');
+  startIndexBuildInBackground();
 }
 
 startNextServer();

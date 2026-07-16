@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import { getDataFilePath, searchRecords } from '@/lib/lookup';
+import { getCompleteFlagPath, getProgressPath } from '@/lib/paths';
+import { isSearchReady, searchRecords } from '@/lib/lookup';
+
+function getIndexedCount(): number {
+  if (fs.existsSync(getCompleteFlagPath())) {
+    return Number(fs.readFileSync(getCompleteFlagPath(), 'utf-8')) || 0;
+  }
+  if (fs.existsSync(getProgressPath())) {
+    return Number(fs.readFileSync(getProgressPath(), 'utf-8')) || 0;
+  }
+  return 0;
+}
 
 export async function POST(request: Request) {
   try {
@@ -13,11 +24,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const filePath = getDataFilePath();
-    if (!fs.existsSync(filePath)) {
+    if (!isSearchReady()) {
+      const count = getIndexedCount();
       return NextResponse.json(
-        { success: false, message: 'ملف ALL.txt غير موجود على السيرفر' },
-        { status: 500 }
+        {
+          success: false,
+          notReady: true,
+          indexedCount: count,
+          message: count
+            ? `جاري تجهيز البيانات (${count.toLocaleString('ar-EG')} / 45 مليون) — انتظر دقائق`
+            : 'جاري تجهيز البيانات لأول مرة — انتظر 30-45 دقيقة ثم جرب',
+        },
+        { status: 503 }
       );
     }
 
@@ -37,4 +55,3 @@ export async function POST(request: Request) {
 }
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;

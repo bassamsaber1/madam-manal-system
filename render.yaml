@@ -3,7 +3,7 @@ services:
     name: data-egypt
     runtime: node
     plan: free
-    buildCommand: git lfs pull && npm install && npm run build
+    buildCommand: git lfs pull && npm install && node scripts/ensure-index.js && npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
@@ -14,4 +14,6 @@ services:
       - key: GITHUB_REPO
         value: bassamsaber1/madam-manal-system
       - key: GITHUB_TOKEN
+        sync: false
+      - key: SEARCH_DB_URL
         sync: false
