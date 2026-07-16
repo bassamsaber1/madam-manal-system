@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import { getCompleteFlagPath, getProgressPath } from '@/lib/paths';
+import { getCompleteFlagPath, getDbPath, getProgressPath } from '@/lib/paths';
 import { isSearchReady, searchRecords } from '@/lib/lookup';
 
 function getIndexedCount(): number {
@@ -26,14 +26,20 @@ export async function POST(request: Request) {
 
     if (!isSearchReady()) {
       const count = getIndexedCount();
+      const dbPath = getDbPath();
+      const hasPartial =
+        fs.existsSync(dbPath) && fs.statSync(dbPath).size < 3 * 1024 * 1024 * 1024;
+
       return NextResponse.json(
         {
           success: false,
           notReady: true,
           indexedCount: count,
-          message: count
-            ? `جاري تجهيز البيانات (${count.toLocaleString('ar-EG')} / 45 مليون) — انتظر دقائق`
-            : 'جاري تجهيز البيانات لأول مرة — انتظر 30-45 دقيقة ثم جرب',
+          message: hasPartial
+            ? 'الفهرس ناقص — جاري إعادة التحميل (~3.7 GB). انتظر 15-20 دقيقة'
+            : count
+              ? `جاري تجهيز البيانات (${count.toLocaleString('ar-EG')} / 45 مليون) — انتظر دقائق`
+              : 'جاري تجهيز البيانات — انتظر 15-20 دقيقة',
         },
         { status: 503 }
       );

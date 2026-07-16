@@ -2,8 +2,19 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const { getDbPath, getCompleteFlag } = require('./data-paths');
 
+const MIN_DB_BYTES = 3 * 1024 * 1024 * 1024;
+
+function isIndexReady() {
+  if (!fs.existsSync(getCompleteFlag()) || !fs.existsSync(getDbPath())) return false;
+  return fs.statSync(getDbPath()).size >= MIN_DB_BYTES;
+}
+
 function startPrepareIndex() {
-  if (fs.existsSync(getCompleteFlag()) && fs.existsSync(getDbPath())) return;
+  if (isIndexReady()) return;
+
+  if (fs.existsSync(getDbPath()) || fs.existsSync(getCompleteFlag())) {
+    console.log('⚠️ الفهرس ناقص — إعادة التحميل');
+  }
 
   console.log('🔧 تجهيز الفهرس في الخلفية...');
   const child = spawn(process.execPath, ['scripts/ensure-index.js'], {
@@ -26,7 +37,7 @@ function startNextServer() {
   });
 }
 
-if (fs.existsSync(getDbPath()) && fs.existsSync(getCompleteFlag())) {
+if (isIndexReady()) {
   console.log('✅ الفهرس جاهز — بحث فوري');
 } else {
   startPrepareIndex();
