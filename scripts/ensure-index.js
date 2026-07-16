@@ -255,6 +255,8 @@ function validateDatabase(dbPath) {
     db.close();
   }
 }
+
+function clearPartialIndex() {
   const dbPath = getDbPath();
   const completeFlag = getCompleteFlag();
   const progressPath = getProgressPath();
