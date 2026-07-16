@@ -10,8 +10,9 @@ const {
   getDataFilePath,
 } = require('./data-paths');
 
-const TOTAL_RECORDS = '45183047';
-const MIN_DB_BYTES = 500 * 1024 * 1024;
+const TOTAL_RECORDS = 45183047;
+const MIN_DB_BYTES = 3 * 1024 * 1024 * 1024;
+const MIN_RECORD_COUNT = 40_000_000;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
@@ -234,7 +235,26 @@ function downloadResponse(response, dest) {
   });
 }
 
-function clearPartialIndex() {
+function validateDatabase(dbPath) {
+  const size = fs.statSync(dbPath).size;
+  if (size < MIN_DB_BYTES) {
+    throw new Error(
+      `الملف ناقص (${(size / 1024 / 1024 / 1024).toFixed(2)} GB) — المفروض ~3.7 GB. ارفع search.db كامل على GitHub Release`
+    );
+  }
+
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const { c } = db.prepare('SELECT COUNT(*) as c FROM records').get();
+    if (c < MIN_RECORD_COUNT) {
+      throw new Error(`الفهرس ناقص (${c.toLocaleString()} سجل فقط) — ارفع search.db كامل`);
+    }
+    return { size, count: c };
+  } finally {
+    db.close();
+  }
+}
   const dbPath = getDbPath();
   const completeFlag = getCompleteFlag();
   const progressPath = getProgressPath();
@@ -300,15 +320,11 @@ async function ensureIndex() {
       throw new Error('الملف المحمّل HTML وليس قاعدة بيانات');
     }
 
-    const size = fs.statSync(tempPath).size;
-    if (size < MIN_DB_BYTES) {
-      fs.unlinkSync(tempPath);
-      throw new Error(`الملف المحمّل صغير (${(size / 1024 / 1024).toFixed(1)} MB)`);
-    }
+    const { size, count } = validateDatabase(tempPath);
 
     if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
     fs.renameSync(tempPath, dbPath);
-    fs.writeFileSync(completeFlag, TOTAL_RECORDS, 'utf-8');
+    fs.writeFileSync(completeFlag, String(count), 'utf-8');
 
     const progressPath = getProgressPath();
     if (fs.existsSync(progressPath)) fs.unlinkSync(progressPath);
